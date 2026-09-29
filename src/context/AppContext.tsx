@@ -79,8 +79,6 @@ interface AppContextType {
   toast: ToastMessage | null;
   showToast: (message: string, type?: 'success' | 'info' | 'error' | 'warning') => void;
   dismissToast: () => void;
-  isMernModalOpen: boolean;
-  setIsMernModalOpen: (open: boolean) => void;
   isServerSynced: boolean;
   recentAttempts: any[];
   refreshAttempts: () => Promise<void>;
@@ -277,8 +275,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [customSavedResources]);
 
-  // MERN Architecture modal state
-  const [isMernModalOpen, setIsMernModalOpen] = useState<boolean>(false);
   const [isServerSynced, setIsServerSynced] = useState<boolean>(false);
   const [recentAttempts, setRecentAttempts] = useState<any[]>([]);
 
@@ -560,8 +556,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toast,
         showToast,
         dismissToast,
-        isMernModalOpen,
-        setIsMernModalOpen,
         isServerSynced,
         recentAttempts,
         refreshAttempts,

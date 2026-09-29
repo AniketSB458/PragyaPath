@@ -1,14 +1,13 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Flame, Compass, Settings2, Database } from 'lucide-react';
-import { MernArchitectureModal } from './MernArchitectureModal';
+import { Flame, Compass, Settings2 } from 'lucide-react';
 
 interface HeaderProps {
   onOpenProfileModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenProfileModal }) => {
-  const { profile, language, setLanguage, activeExam, isMernModalOpen, setIsMernModalOpen } = useApp();
+  const { profile, language, setLanguage, activeExam } = useApp();
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(' ');
@@ -38,19 +37,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenProfileModal }) => {
               </div>
             </div>
 
-            {/* Right: MERN Status Badge + Streak + Language Toggle + Profile */}
+            {/* Right: Streak + Language Toggle + Profile */}
             <div className="flex items-center space-x-2 sm:space-x-3">
-              {/* MERN Stack Live Status Badge */}
-              <button
-                onClick={() => setIsMernModalOpen(true)}
-                className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-900 text-xs font-bold border border-emerald-500/30 shadow-2xs transition-all cursor-pointer group"
-                title="View Full-Stack MERN Architecture, MongoDB Collections & Express API"
-              >
-                <Database className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden md:inline font-mono">MERN Stack</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              </button>
-
               {/* Streak */}
               <div
                 className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-amber-50/70 backdrop-blur-md text-amber-900 text-xs font-semibold border border-amber-200/70 shadow-2xs"
@@ -112,12 +100,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenProfileModal }) => {
           </div>
         </div>
       </header>
-
-      {/* MERN Architecture Explorer Modal */}
-      <MernArchitectureModal
-        isOpen={isMernModalOpen}
-        onClose={() => setIsMernModalOpen(false)}
-      />
     </>
   );
 };
