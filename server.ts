@@ -3,6 +3,13 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { initDatabase } from './server/db/index.js';
+import authRoutes from './server/routes/auth.js';
+import sessionsRoutes from './server/routes/sessions.js';
+import notesRoutes from './server/routes/notes.js';
+import practiceRoutes from './server/routes/practice.js';
+import bookmarksRoutes from './server/routes/bookmarks.js';
+import mernRoutes from './server/routes/mern.js';
 
 dotenv.config();
 
@@ -13,6 +20,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+
+// MERN Stack REST API Routers
+app.use('/api/auth', authRoutes);
+app.use('/api/sessions', sessionsRoutes);
+app.use('/api/notes', notesRoutes);
+app.use('/api/practice', practiceRoutes);
+app.use('/api/bookmarks', bookmarksRoutes);
+app.use('/api/mern', mernRoutes);
 
 // Initialize Google GenAI SDK (Server-Side only)
 let ai: GoogleGenAI | null = null;
@@ -611,6 +626,13 @@ For the resources, return a JSON array with 4 items:
 
 // Configure Vite integration
 async function startServer() {
+  // Initialize MERN MongoDB / Embedded Document Database layer
+  try {
+    await initDatabase();
+  } catch (dbErr) {
+    console.warn('Database initialization warning:', dbErr);
+  }
+
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {

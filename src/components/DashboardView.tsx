@@ -16,6 +16,8 @@ import {
   BotMessageSquare,
   TrendingUp,
   ShieldAlert,
+  Database,
+  Layers,
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
@@ -27,6 +29,7 @@ export const DashboardView: React.FC = () => {
     activeRoadmap,
     t,
     focusTimer,
+    setIsMernModalOpen,
   } = useApp();
 
   const completedSessions = dailySessions.filter((s) => s.completed).length;
@@ -73,6 +76,35 @@ export const DashboardView: React.FC = () => {
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
+      </div>
+
+      {/* Full-Stack MERN Stack Quick Bar */}
+      <div className="glass-card rounded-2xl p-3.5 sm:px-5 sm:py-3 border border-emerald-500/20 bg-linear-to-r from-emerald-500/10 via-white/60 to-indigo-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0 font-bold text-xs">
+            <Database className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-900">MERN Stack Active</span>
+              <span className="flex items-center space-x-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>MongoDB + Express + React + Node</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 hidden sm:block">
+              Persistent collections for users, study sessions, test attempts, notes, and resource bookmarks synced in real time.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setIsMernModalOpen(true)}
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/90 hover:bg-white text-slate-800 hover:text-indigo-600 border border-slate-200/80 text-xs font-bold transition-all shadow-2xs cursor-pointer self-start sm:self-auto shrink-0"
+        >
+          <Layers className="w-3.5 h-3.5 text-indigo-600" />
+          <span>Inspect Architecture & DB</span>
+        </button>
       </div>
 
       {/* The PragyaPath 8-Step Navigation Continuum */}

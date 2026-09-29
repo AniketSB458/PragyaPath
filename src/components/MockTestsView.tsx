@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
 import { MOCK_TESTS } from '../data/mockData';
 import { MockSubmissionResult, MockTest, PYQQuestion } from '../types';
+import { api } from '../services/api';
 import {
   Award,
   Clock,
@@ -18,10 +19,12 @@ import {
   TrendingUp,
   LayoutGrid,
   Check,
+  Database,
+  History,
 } from 'lucide-react';
 
 export const MockTestsView: React.FC = () => {
-  const { profile, updateProfile, addWeakTopic, resolveWeakTopic, setActiveTab, showToast, t } = useApp();
+  const { profile, updateProfile, addWeakTopic, resolveWeakTopic, setActiveTab, showToast, t, recentAttempts, refreshAttempts } = useApp();
 
   const [activeTest, setActiveTest] = useState<MockTest | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -122,6 +125,18 @@ export const MockTestsView: React.FC = () => {
 
     setSubmissionResult(result);
     showToast(`Test submitted! Scored ${totalScore}/${activeTest.questions.length * 2} (${accuracy}%)`, 'success');
+
+    // Save attempt to MongoDB backend
+    const email = profile.email || 'anyabandgar458@gmail.com';
+    api.practice.saveAttempt({
+      ...result,
+      userId: email,
+      testTitle: activeTest.title,
+    }).then(() => {
+      refreshAttempts();
+    }).catch((err) => {
+      console.warn('Could not record attempt to MongoDB:', err);
+    });
 
     // Update global profile stats
     updateProfile({
@@ -438,50 +453,120 @@ export const MockTestsView: React.FC = () => {
         </div>
       ) : (
         /* View Mode 3: Test Directory */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {MOCK_TESTS.map((test) => (
-            <div
-              key={test.id}
-              className="glass-card rounded-2xl p-5 sm:p-6 hover:shadow-lg hover:border-white transition-all flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60 uppercase">
-                    {test.exam}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500 flex items-center space-x-1">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{test.durationMinutes} Minutes</span>
-                  </span>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {MOCK_TESTS.map((test) => (
+              <div
+                key={test.id}
+                className="glass-card rounded-2xl p-5 sm:p-6 hover:shadow-lg hover:border-white transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60 uppercase">
+                      {test.exam}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 flex items-center space-x-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{test.durationMinutes} Minutes</span>
+                    </span>
+                  </div>
+
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-2">{test.title}</h3>
+
+                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                    Full computer-based test simulation featuring official previous-year questions and high-yield exam patterns. Negative marking applied to emulate real testing conditions.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
+                    <div>
+                      <span className="text-slate-400 text-[10px] font-bold uppercase">Questions:</span>
+                      <p className="font-bold text-slate-800">{test.questions.length} Items</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] font-bold uppercase">Total Marks:</span>
+                      <p className="font-bold text-slate-800">{test.totalMarks} Marks</p>
+                    </div>
+                  </div>
                 </div>
 
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 mb-2">{test.title}</h3>
+                <button
+                  onClick={() => handleStartTest(test)}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                >
+                  <span>Launch Timed Mock Test</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                  Full computer-based test simulation featuring official previous-year questions and high-yield exam patterns. Negative marking applied to emulate real testing conditions.
-                </p>
-
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
-                  <div>
-                    <span className="text-slate-400 text-[10px] font-bold uppercase">Questions:</span>
-                    <p className="font-bold text-slate-800">{test.questions.length} Items</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-[10px] font-bold uppercase">Total Marks:</span>
-                    <p className="font-bold text-slate-800">{test.totalMarks} Marks</p>
-                  </div>
+          {/* MongoDB Attempt History Section */}
+          {recentAttempts && recentAttempts.length > 0 && (
+            <div className="glass-card rounded-2xl p-5 border border-white/80 shadow-md">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <Database className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-sm font-bold text-slate-900">
+                    MongoDB Test Attempt History & Diagnostics ({recentAttempts.length})
+                  </h3>
                 </div>
+                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Collection: testattempts
+                </span>
               </div>
 
-              <button
-                onClick={() => handleStartTest(test)}
-                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer flex items-center justify-center space-x-1.5"
-              >
-                <span>Launch Timed Mock Test</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="space-y-3">
+                {recentAttempts.slice(0, 4).map((att: any, idx: number) => (
+                  <div
+                    key={att.id || att._id || idx}
+                    className="p-3.5 rounded-xl bg-white/80 border border-slate-200/80 hover:border-indigo-300 transition-all text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">{att.testTitle}</div>
+                      <div className="text-slate-500 text-[11px] mt-0.5 flex items-center space-x-2">
+                        <span>
+                          {new Date(att.createdAt || Date.now()).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                        <span>•</span>
+                        <span>Duration: {Math.floor((att.timeSpentSeconds || 0) / 60)}m {((att.timeSpentSeconds || 0) % 60)}s</span>
+                      </div>
+                      {att.weakAreas && att.weakAreas.length > 0 && (
+                        <div className="flex items-center space-x-1 mt-1.5 flex-wrap gap-1">
+                          <span className="text-[10px] font-bold text-amber-700">Diagnosed Weak Topics:</span>
+                          {att.weakAreas.map((w: string, wi: number) => (
+                            <span
+                              key={wi}
+                              className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] border border-amber-200 font-medium"
+                            >
+                              {w}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-3 shrink-0">
+                      <div className="text-right">
+                        <div className="text-base font-extrabold text-indigo-700">
+                          {att.score} <span className="text-xs text-slate-400 font-normal">/ {att.totalMarks}</span>
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-500">
+                          {att.accuracyPercent}% Accuracy
+                        </div>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold text-xs">
+                        ✓ {att.correctCount}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

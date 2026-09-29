@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   CAREERS_DATABASE,
   EXAMS_DATABASE,
@@ -15,6 +15,7 @@ import {
   Roadmap,
   UserProfile,
 } from '../types';
+import { api } from '../services/api';
 
 export type TabType =
   | 'dashboard'
@@ -78,6 +79,11 @@ interface AppContextType {
   toast: ToastMessage | null;
   showToast: (message: string, type?: 'success' | 'info' | 'error' | 'warning') => void;
   dismissToast: () => void;
+  isMernModalOpen: boolean;
+  setIsMernModalOpen: (open: boolean) => void;
+  isServerSynced: boolean;
+  recentAttempts: any[];
+  refreshAttempts: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -271,8 +277,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [customSavedResources]);
 
+  // MERN Architecture modal state
+  const [isMernModalOpen, setIsMernModalOpen] = useState<boolean>(false);
+  const [isServerSynced, setIsServerSynced] = useState<boolean>(false);
+  const [recentAttempts, setRecentAttempts] = useState<any[]>([]);
+
+  // Fetch test attempts from MongoDB
+  const refreshAttempts = useCallback(async () => {
+    try {
+      const email = profile.email || 'anyabandgar458@gmail.com';
+      const data = await api.practice.getAttempts(email);
+      if (data && data.attempts) {
+        setRecentAttempts(data.attempts);
+      }
+    } catch (e) {
+      console.warn('Failed to refresh attempts:', e);
+    }
+  }, [profile.email]);
+
+  // Initial MERN Database Hydration
+  useEffect(() => {
+    let isMounted = true;
+    async function hydrateFromMernDatabase() {
+      const email = profile.email || 'anyabandgar458@gmail.com';
+      try {
+        // 1. Fetch Profile
+        const serverUser = await api.auth.getProfile(email);
+        if (serverUser && isMounted) {
+          setProfile((prev) => ({
+            ...prev,
+            ...serverUser,
+          }));
+        }
+
+        // 2. Fetch Sessions
+        const serverSessions = await api.sessions.getSessions(email);
+        if (serverSessions && serverSessions.length > 0 && isMounted) {
+          setDailySessions(serverSessions);
+        }
+
+        // 3. Fetch Notes
+        const serverNotes = await api.notes.getNotes(email);
+        if (serverNotes && serverNotes.length > 0 && isMounted) {
+          setNotes(serverNotes);
+        }
+
+        // 4. Fetch Attempts
+        await refreshAttempts();
+
+        if (isMounted) {
+          setIsServerSynced(true);
+        }
+      } catch (err) {
+        console.warn('MERN database hydration fallback to local cache:', err);
+      }
+    }
+
+    hydrateFromMernDatabase();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const updateProfile = (updates: Partial<UserProfile>) => {
-    setProfile((prev) => ({ ...prev, ...updates }));
+    setProfile((prev) => {
+      const next = { ...prev, ...updates };
+      // Background sync to MongoDB via Express
+      api.auth.updateProfile({ ...next, email: next.email || 'anyabandgar458@gmail.com' }).catch(() => {});
+      return next;
+    });
   };
 
   // Toast state
@@ -321,6 +394,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
             showToast(`Completed "${s.title}" (+${s.durationMinutes}m)`, 'success');
           }
+          // Sync update to MongoDB
+          api.sessions.updateSession(id, { completed: newCompleted }).catch(() => {});
           return { ...s, completed: newCompleted };
         }
         return s;
@@ -329,13 +404,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addDailySession = (session: Omit<DailyStudySession, 'id' | 'completed'>) => {
+    const tempId = `ds-${Date.now()}`;
     const newSession: DailyStudySession = {
       ...session,
-      id: `ds-${Date.now()}`,
+      id: tempId,
       completed: false,
     };
     setDailySessions((prev) => [newSession, ...prev]);
     showToast(`Added study session: ${session.title}`, 'success');
+
+    // Persist to MongoDB
+    const email = profile.email || 'anyabandgar458@gmail.com';
+    api.sessions.createSession({ ...session, userId: email }).then((saved) => {
+      if (saved && saved.id) {
+        setDailySessions((prev) => prev.map((s) => (s.id === tempId ? { ...s, id: saved.id } : s)));
+      }
+    }).catch(() => {});
   };
 
   const toggleTopicCompletion = (topicId: string) => {
@@ -354,6 +438,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? profile.bookmarkedResourceIds.filter((id) => id !== resourceId)
       : [...profile.bookmarkedResourceIds, resourceId];
 
+    const email = profile.email || 'anyabandgar458@gmail.com';
+
     if (!isBookmarked && resourceData) {
       setCustomSavedResources((prev) => {
         if (!prev.some((r) => r.id === resourceData.id)) {
@@ -361,6 +447,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return prev;
       });
+      // Save to MongoDB
+      api.bookmarks.saveBookmark({
+        userId: email,
+        resourceId,
+        title: resourceData.title,
+        platform: resourceData.platform,
+        linkUrl: resourceData.linkUrl,
+        resourceData,
+      }).catch(() => {});
+    } else if (isBookmarked) {
+      // Delete from MongoDB
+      api.bookmarks.deleteBookmark(resourceId, email).catch(() => {});
     }
 
     updateProfile({ bookmarkedResourceIds: newBookmarks });
@@ -393,19 +491,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addNote = (topic: string, content: string) => {
+    const tempId = `note-${Date.now()}`;
     const newNote: PersonalNote = {
-      id: `note-${Date.now()}`,
+      id: tempId,
       topic,
       content,
       createdAt: 'Just now',
     };
     setNotes((prev) => [newNote, ...prev]);
     showToast(`Saved note for ${topic}`, 'success');
+
+    // Persist to MongoDB
+    const email = profile.email || 'anyabandgar458@gmail.com';
+    api.notes.createNote({ userId: email, topic, content }).then((saved) => {
+      if (saved && (saved.id || saved._id)) {
+        const actualId = saved.id || saved._id;
+        setNotes((prev) => prev.map((n) => (n.id === tempId ? { ...n, id: actualId } : n)));
+      }
+    }).catch(() => {});
   };
 
   const deleteNote = (id: string) => {
     setNotes((prev) => prev.filter((n) => n.id !== id));
     showToast('Note deleted', 'info');
+    api.notes.deleteNote(id).catch(() => {});
   };
 
   return (
@@ -451,6 +560,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toast,
         showToast,
         dismissToast,
+        isMernModalOpen,
+        setIsMernModalOpen,
+        isServerSynced,
+        recentAttempts,
+        refreshAttempts,
       }}
     >
       {children}
