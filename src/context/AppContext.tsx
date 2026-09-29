@@ -16,6 +16,7 @@ import {
   UserProfile,
 } from '../types';
 import { api } from '../services/api';
+import { playReminderChime, sendDesktopNotification, formatTime12h } from '../utils/sound';
 
 export type TabType =
   | 'dashboard'
@@ -31,8 +32,19 @@ export type TabType =
 
 export interface ToastMessage {
   id: string;
+  title?: string;
   message: string;
-  type: 'success' | 'info' | 'error' | 'warning';
+  subtitle?: string;
+  type: 'success' | 'info' | 'error' | 'warning' | 'reminder';
+  duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+  secondaryAction?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface PersonalNote {
@@ -56,6 +68,12 @@ interface AppContextType {
   dailySessions: DailyStudySession[];
   toggleDailySession: (id: string) => void;
   addDailySession: (session: Omit<DailyStudySession, 'id' | 'completed'>) => void;
+  setTaskReminder: (taskId: string, reminderTime: string, enabled?: boolean) => void;
+  toggleTaskReminder: (taskId: string) => void;
+  triggerStudyReminderToast: (session: DailyStudySession) => void;
+  snoozeTaskReminder: (taskId: string, minutes?: number) => void;
+  quickScheduleAllReminders: () => void;
+  startFocusForSession: (session: DailyStudySession) => void;
   toggleTopicCompletion: (topicId: string) => void;
   customSavedResources: FreeResource[];
   toggleBookmarkResource: (resourceId: string, resourceData?: FreeResource) => void;
@@ -77,7 +95,11 @@ interface AppContextType {
     reset: (mins?: number) => void;
   };
   toast: ToastMessage | null;
-  showToast: (message: string, type?: 'success' | 'info' | 'error' | 'warning') => void;
+  showToast: (
+    message: string,
+    type?: 'success' | 'info' | 'error' | 'warning' | 'reminder',
+    options?: Partial<ToastMessage>
+  ) => void;
   dismissToast: () => void;
   isServerSynced: boolean;
   recentAttempts: any[];
@@ -96,6 +118,8 @@ const INITIAL_DAILY_SESSIONS: DailyStudySession[] = [
     sessionType: 'Concept & Theory',
     completed: true,
     priority: 'high',
+    reminderTime: '08:00',
+    reminderEnabled: true,
   },
   {
     id: 'ds-2',
@@ -106,6 +130,8 @@ const INITIAL_DAILY_SESSIONS: DailyStudySession[] = [
     sessionType: 'PYQ Practice',
     completed: false,
     priority: 'high',
+    reminderTime: '11:00',
+    reminderEnabled: true,
   },
   {
     id: 'ds-3',
@@ -116,6 +142,8 @@ const INITIAL_DAILY_SESSIONS: DailyStudySession[] = [
     sessionType: 'Weak Topic Revision',
     completed: false,
     priority: 'medium',
+    reminderTime: '15:30',
+    reminderEnabled: true,
   },
   {
     id: 'ds-4',
@@ -126,6 +154,8 @@ const INITIAL_DAILY_SESSIONS: DailyStudySession[] = [
     sessionType: 'Adaptive Quiz',
     completed: false,
     priority: 'low',
+    reminderTime: '20:00',
+    reminderEnabled: true,
   },
 ];
 
@@ -347,9 +377,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Toast state
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  const showToast = (message: string, type: 'success' | 'info' | 'error' | 'warning' = 'success') => {
+  const showToast = (
+    message: string,
+    type: 'success' | 'info' | 'error' | 'warning' | 'reminder' = 'success',
+    options?: Partial<ToastMessage>
+  ) => {
     const id = `toast-${Date.now()}`;
-    setToast({ id, message, type });
+    setToast({
+      id,
+      message,
+      type,
+      ...options,
+    });
   };
 
   const dismissToast = () => {
@@ -358,12 +397,156 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (toast) {
+      const dismissDuration = toast.duration || (toast.type === 'reminder' ? 10000 : 3500);
       const timer = setTimeout(() => {
         setToast(null);
-      }, 3500);
+      }, dismissDuration);
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  const startFocusForSession = (session: DailyStudySession) => {
+    setActiveTab('planner');
+    setTimerMinutes(session.durationMinutes);
+    setTimerSeconds(0);
+    setTimerRunning(true);
+    showToast(`Focus sprint started for "${session.title}" (${session.durationMinutes}m)!`, 'success');
+  };
+
+  const snoozeTaskReminder = (taskId: string, minutes: number = 10) => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + minutes);
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const newTime = `${h}:${m}`;
+
+    setDailySessions((prev) =>
+      prev.map((s) => {
+        if (s.id === taskId) {
+          return {
+            ...s,
+            reminderTime: newTime,
+            reminderEnabled: true,
+            lastNotifiedDate: undefined,
+          };
+        }
+        return s;
+      })
+    );
+
+    showToast(`Reminder snoozed for ${minutes}m (will alert at ${formatTime12h(newTime)})`, 'info');
+  };
+
+  const triggerStudyReminderToast = (session: DailyStudySession) => {
+    playReminderChime();
+    sendDesktopNotification(
+      `⏰ Study Reminder: ${session.title}`,
+      `Scheduled ${session.durationMinutes} mins on ${session.subject} (${session.sessionType})`
+    );
+
+    const formattedTime = formatTime12h(session.reminderTime || 'Now');
+
+    setToast({
+      id: `reminder-${session.id}-${Date.now()}`,
+      type: 'reminder',
+      title: session.title,
+      message: `Time to start your scheduled ${session.durationMinutes}-minute study sprint!`,
+      subtitle: `${session.subject} • ${session.sessionType} • Scheduled ${formattedTime}`,
+      duration: 12000,
+      action: {
+        label: `Start Focus (${session.durationMinutes}m)`,
+        onClick: () => {
+          startFocusForSession(session);
+        },
+      },
+      secondaryAction: {
+        label: 'Snooze 10m',
+        onClick: () => {
+          snoozeTaskReminder(session.id, 10);
+        },
+      },
+    });
+  };
+
+  const setTaskReminder = (taskId: string, reminderTime: string, enabled: boolean = true) => {
+    setDailySessions((prev) => {
+      const next = prev.map((s) => {
+        if (s.id === taskId) {
+          const updated = {
+            ...s,
+            reminderTime,
+            reminderEnabled: enabled,
+            lastNotifiedDate: s.reminderTime !== reminderTime ? undefined : s.lastNotifiedDate,
+          };
+          api.sessions
+            .updateSession(taskId, {
+              reminderTime: updated.reminderTime,
+              reminderEnabled: updated.reminderEnabled,
+            })
+            .catch(() => {});
+          return updated;
+        }
+        return s;
+      });
+      return next;
+    });
+
+    if (enabled) {
+      showToast(`Daily reminder set for ${formatTime12h(reminderTime)}`, 'success');
+    } else {
+      showToast('Study reminder turned off', 'info');
+    }
+  };
+
+  const toggleTaskReminder = (taskId: string) => {
+    const task = dailySessions.find((s) => s.id === taskId);
+    if (!task) return;
+    const nextState = !task.reminderEnabled;
+    const defaultTime = task.reminderTime || '09:00';
+    setTaskReminder(taskId, defaultTime, nextState);
+  };
+
+  const quickScheduleAllReminders = () => {
+    const times = ['08:00', '11:00', '15:30', '19:30', '21:00'];
+    setDailySessions((prev) =>
+      prev.map((s, idx) => ({
+        ...s,
+        reminderTime: s.reminderTime || times[idx % times.length],
+        reminderEnabled: true,
+      }))
+    );
+    playReminderChime();
+    showToast('Scheduled daily study reminders for all tasks across morning, afternoon & evening!', 'success');
+  };
+
+  // Active Reminder Heartbeat: check for scheduled task reminders every 15s
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      const currentHours = String(now.getHours()).padStart(2, '0');
+      const currentMins = String(now.getMinutes()).padStart(2, '0');
+      const currentTimeStr = `${currentHours}:${currentMins}`;
+      const todayDateStr = now.toISOString().split('T')[0];
+
+      dailySessions.forEach((session) => {
+        if (
+          session.reminderEnabled &&
+          session.reminderTime === currentTimeStr &&
+          session.lastNotifiedDate !== todayDateStr &&
+          !session.completed
+        ) {
+          triggerStudyReminderToast(session);
+          setDailySessions((prev) =>
+            prev.map((s) => (s.id === session.id ? { ...s, lastNotifiedDate: todayDateStr } : s))
+          );
+        }
+      });
+    };
+
+    checkReminders();
+    const interval = setInterval(checkReminders, 15000);
+    return () => clearInterval(interval);
+  }, [dailySessions]);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
@@ -529,6 +712,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         dailySessions,
         toggleDailySession,
         addDailySession,
+        setTaskReminder,
+        toggleTaskReminder,
+        triggerStudyReminderToast,
+        snoozeTaskReminder,
+        quickScheduleAllReminders,
+        startFocusForSession,
         toggleTopicCompletion,
         customSavedResources,
         toggleBookmarkResource,

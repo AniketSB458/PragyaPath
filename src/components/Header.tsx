@@ -1,13 +1,53 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Flame, Compass, Settings2 } from 'lucide-react';
+import { formatTime12h } from '../utils/sound';
+import {
+  Flame,
+  Compass,
+  Settings2,
+  Bell,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  ArrowRight,
+  Zap,
+} from 'lucide-react';
 
 interface HeaderProps {
   onOpenProfileModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenProfileModal }) => {
-  const { profile, language, setLanguage, activeExam } = useApp();
+  const {
+    profile,
+    language,
+    setLanguage,
+    activeExam,
+    dailySessions,
+    toggleTaskReminder,
+    triggerStudyReminderToast,
+    quickScheduleAllReminders,
+    setActiveTab,
+  } = useApp();
+
+  const [reminderMenuOpen, setReminderMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const activeReminders = dailySessions.filter((s) => s.reminderEnabled && !s.completed);
+  const activeRemindersCount = activeReminders.length;
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setReminderMenuOpen(false);
+      }
+    }
+    if (reminderMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [reminderMenuOpen]);
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(' ');
@@ -37,8 +77,135 @@ export const Header: React.FC<HeaderProps> = ({ onOpenProfileModal }) => {
               </div>
             </div>
 
-            {/* Right: Streak + Language Toggle + Profile */}
+            {/* Right: Daily Reminder Bell + Streak + Language Toggle + Profile */}
             <div className="flex items-center space-x-2 sm:space-x-3">
+              {/* Daily Study Reminder Notification Bell */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setReminderMenuOpen(!reminderMenuOpen)}
+                  className={`relative p-2 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                    reminderMenuOpen
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                      : 'bg-white/60 hover:bg-white/90 border-white/80 text-slate-700 hover:text-indigo-600 backdrop-blur-md'
+                  }`}
+                  title="Daily Study Reminders & Alerts"
+                >
+                  <Bell className="w-4 h-4" />
+                  {activeRemindersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-extrabold shadow-xs">
+                      {activeRemindersCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Reminders Popover Menu */}
+                {reminderMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-slate-200/90 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                          <Bell className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-bold text-slate-900">Daily Study Reminders</h3>
+                          <p className="text-[10px] text-slate-500">Toast notification alerts</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                        {activeRemindersCount} Active
+                      </span>
+                    </div>
+
+                    {/* Task Reminder List */}
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {dailySessions.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-3 text-center">No planned tasks for today yet.</p>
+                      ) : (
+                        dailySessions.map((session) => (
+                          <div
+                            key={session.id}
+                            className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
+                              session.completed
+                                ? 'bg-slate-50 border-slate-200 opacity-60'
+                                : session.reminderEnabled
+                                ? 'bg-indigo-50/40 border-indigo-200/80'
+                                : 'bg-white border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <button
+                                onClick={() => toggleTaskReminder(session.id)}
+                                className={`w-4 h-4 rounded flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+                                  session.reminderEnabled
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'border border-slate-300 hover:border-indigo-500'
+                                }`}
+                                title="Toggle reminder alert"
+                              >
+                                {session.reminderEnabled && <CheckCircle2 className="w-3 h-3" />}
+                              </button>
+
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className={`text-xs font-bold truncate ${
+                                    session.completed ? 'line-through text-slate-400' : 'text-slate-900'
+                                  }`}
+                                >
+                                  {session.title}
+                                </p>
+                                <div className="text-[10px] text-slate-500 flex items-center space-x-1.5 mt-0.5">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span>{session.durationMinutes}m</span>
+                                  <span>•</span>
+                                  <span className="font-semibold text-indigo-700">
+                                    {session.reminderTime ? formatTime12h(session.reminderTime) : 'Not set'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {!session.completed && (
+                              <button
+                                onClick={() => triggerStudyReminderToast(session)}
+                                className="p-1.5 rounded-lg bg-white hover:bg-indigo-50 text-indigo-600 border border-slate-200/60 shadow-2xs transition-colors cursor-pointer shrink-0"
+                                title="Trigger Toast Alert"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Popover Footer Actions */}
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <button
+                        onClick={() => {
+                          quickScheduleAllReminders();
+                        }}
+                        className="inline-flex items-center space-x-1 text-slate-600 hover:text-indigo-600 font-semibold cursor-pointer"
+                        title="Auto-assign scheduled times across the day"
+                      >
+                        <Zap className="w-3 h-3 text-amber-500" />
+                        <span>Quick Schedule</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setReminderMenuOpen(false);
+                          setActiveTab('planner');
+                        }}
+                        className="inline-flex items-center space-x-1 font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                      >
+                        <span>Open Planner</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Streak */}
               <div
                 className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-amber-50/70 backdrop-blur-md text-amber-900 text-xs font-semibold border border-amber-200/70 shadow-2xs"
@@ -103,4 +270,3 @@ export const Header: React.FC<HeaderProps> = ({ onOpenProfileModal }) => {
     </>
   );
 };
-

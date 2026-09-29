@@ -16,7 +16,9 @@ import {
   BotMessageSquare,
   TrendingUp,
   ShieldAlert,
+  Bell,
 } from 'lucide-react';
+import { formatTime12h } from '../utils/sound';
 
 export const DashboardView: React.FC = () => {
   const {
@@ -188,6 +190,15 @@ export const DashboardView: React.FC = () => {
                         <span>{session.sessionType}</span>
                         <span>•</span>
                         <span>{session.durationMinutes} mins</span>
+                        {session.reminderEnabled && session.reminderTime && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+                              <Bell className="w-2.5 h-2.5" />
+                              <span>{formatTime12h(session.reminderTime)}</span>
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

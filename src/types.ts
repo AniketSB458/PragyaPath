@@ -171,6 +171,9 @@ export interface DailyStudySession {
   sessionType: 'Concept & Theory' | 'PYQ Practice' | 'Weak Topic Revision' | 'Adaptive Quiz' | 'Mock Test';
   completed: boolean;
   priority: 'high' | 'medium' | 'low';
+  reminderTime?: string; // 24-hr format "HH:mm" (e.g. "09:00", "14:30")
+  reminderEnabled?: boolean;
+  lastNotifiedDate?: string; // "YYYY-MM-DD"
 }
 
 export interface PYQQuestion {
