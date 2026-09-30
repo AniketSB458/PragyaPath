@@ -21,7 +21,7 @@ router.get('/profile', async (req, res) => {
 // POST /api/auth/profile
 router.post('/profile', async (req, res) => {
   try {
-    const { email, ...updates } = req.body;
+    const { email, _id, id, __v, createdAt, updatedAt, ...updates } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }

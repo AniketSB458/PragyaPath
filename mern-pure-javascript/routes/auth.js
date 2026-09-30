@@ -31,13 +31,13 @@ router.get('/profile', async (req, res) => {
 // POST /api/auth/profile
 router.post('/profile', async (req, res) => {
   try {
-    const { email, ...updates } = req.body;
+    const { email, _id, id, __v, createdAt, updatedAt, ...updates } = req.body;
     const targetEmail = email || 'anyabandgar458@gmail.com';
 
     const user = await User.findOneAndUpdate(
       { email: targetEmail },
       { $set: updates },
-      { new: true, upsert: true }
+      { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
     res.json({ success: true, profile: user });

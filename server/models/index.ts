@@ -206,14 +206,19 @@ export const dbService = {
       return await embeddedDb.users.findOne({ email });
     },
     async upsert(email: string, data: any) {
+      const { _id, id, __v, createdAt, updatedAt, ...cleanData } = data || {};
       if (mongoose.connection.readyState === 1) {
-        return await UserModel.findOneAndUpdate({ email }, { $set: data }, { new: true, upsert: true }).lean();
+        return await UserModel.findOneAndUpdate(
+          { email },
+          { $set: cleanData },
+          { new: true, upsert: true, setDefaultsOnInsert: true }
+        ).lean();
       }
       const existing = await embeddedDb.users.findOne({ email });
       if (existing) {
-        return await embeddedDb.users.updateOne({ email }, data);
+        return await embeddedDb.users.updateOne({ email }, cleanData);
       }
-      return await embeddedDb.users.create({ email, ...data });
+      return await embeddedDb.users.create({ _id: _id || 'user_anya_default', email, ...cleanData });
     },
     async list() {
       if (mongoose.connection.readyState === 1) {
@@ -239,15 +244,22 @@ export const dbService = {
       return await embeddedDb.studySessions.create(doc);
     },
     async update(id: string, updates: any) {
+      const { _id, id: sid, __v, createdAt, updatedAt, ...cleanUpdates } = updates || {};
       if (mongoose.connection.readyState === 1) {
-        return await StudySessionModel.findByIdAndUpdate(id, { $set: updates }, { new: true }).lean();
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          return await StudySessionModel.findByIdAndUpdate(id, { $set: cleanUpdates }, { new: true }).lean();
+        }
+        return await StudySessionModel.findOneAndUpdate({ id }, { $set: cleanUpdates }, { new: true }).lean();
       }
       const filter = id.startsWith('doc_') ? { _id: id } : { id };
-      return await embeddedDb.studySessions.updateOne(filter, updates);
+      return await embeddedDb.studySessions.updateOne(filter, cleanUpdates);
     },
     async delete(id: string) {
       if (mongoose.connection.readyState === 1) {
-        return await StudySessionModel.findByIdAndDelete(id);
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          return await StudySessionModel.findByIdAndDelete(id);
+        }
+        return await StudySessionModel.findOneAndDelete({ id });
       }
       const filter = id.startsWith('doc_') ? { _id: id } : { id };
       return await embeddedDb.studySessions.deleteOne(filter);
@@ -271,7 +283,10 @@ export const dbService = {
     },
     async delete(id: string) {
       if (mongoose.connection.readyState === 1) {
-        return await PersonalNoteModel.findByIdAndDelete(id);
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          return await PersonalNoteModel.findByIdAndDelete(id);
+        }
+        return await PersonalNoteModel.findOneAndDelete({ $or: [{ _id: id }, { id }] });
       }
       const filter = id.startsWith('doc_') ? { _id: id } : { id };
       return await embeddedDb.personalNotes.deleteOne(filter);
