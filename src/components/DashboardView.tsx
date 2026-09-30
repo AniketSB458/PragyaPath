@@ -19,6 +19,11 @@ import {
   Bell,
 } from 'lucide-react';
 import { formatTime12h } from '../utils/sound';
+import { VisualPerformanceDashboard } from './VisualPerformanceDashboard';
+import { TopicMasteryHeatmap } from './TopicMasteryHeatmap';
+import { Badges } from './Badges';
+import { ConsistencyStreak } from './ConsistencyStreak';
+import { FocusTimer } from './FocusTimer';
 
 export const DashboardView: React.FC = () => {
   const {
@@ -114,6 +119,18 @@ export const DashboardView: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Visual Performance Dashboard: Historical Mock Test Scores & Topic Study Time */}
+      <VisualPerformanceDashboard />
+
+      {/* Topic Mastery Heatmap: Recharts Subject Spectrum & Subtopic Diagnostic Matrix */}
+      <TopicMasteryHeatmap />
+
+      {/* Consistency Streak Tracker with Milestone Shields & Rolling Calendar */}
+      <ConsistencyStreak />
+
+      {/* Motivational Achievement Badges: Consistency King, Early Bird, etc. */}
+      <Badges />
 
       {/* Main 3-Column Dashboard Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -215,50 +232,10 @@ export const DashboardView: React.FC = () => {
                 </div>
               ))}
             </div>
-
-            {/* Quick Focus Timer Widget */}
-            <div className="mt-5 p-4 rounded-xl bg-linear-to-r from-slate-900 to-indigo-950 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">{t('dash_focus_timer_title')}</h4>
-                  <p className="text-[11px] text-slate-300">
-                    {t('dash_focus_timer_desc')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <span className="font-mono text-2xl font-bold tracking-wider text-indigo-200">
-                  {String(focusTimer.minutes).padStart(2, '0')}:{String(focusTimer.seconds).padStart(2, '0')}
-                </span>
-                {focusTimer.isRunning ? (
-                  <button
-                    onClick={focusTimer.pause}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs shadow-xs cursor-pointer"
-                  >
-                    {t('dash_pause')}
-                  </button>
-                ) : (
-                  <button
-                    onClick={focusTimer.start}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold text-xs shadow-xs cursor-pointer flex items-center space-x-1"
-                  >
-                    <Play className="w-3 h-3 fill-slate-900" />
-                    <span>{t('dash_start')}</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => focusTimer.reset(25)}
-                  className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-slate-300 font-semibold cursor-pointer"
-                >
-                  {t('reset')}
-                </button>
-              </div>
-            </div>
           </div>
+
+          {/* Dedicated Active Focus Timer Component with Performance Sync */}
+          <FocusTimer />
 
           {/* Active Roadmap Overview Card */}
           <div className="glass-card rounded-2xl p-5 sm:p-6 hover:shadow-lg transition-all">
